@@ -1,8 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, join_room, leave_room, emit
 import os
-import google.generativeai as genai
-from google.generativeai.types import GenerateContentConfig
+from google import generativeai as genai
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'  # Replace with a secure key
@@ -17,11 +16,9 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 def get_gemini_prompt():
     try:
-        sys_instruct = "You are a creative assistant. Generate unique and fun drawing prompts for a game."
         response = client.models.generate_content(
-            model="gemini-2.0-flash",  # Adjust model name as per actual availability
-            config=GenerateContentConfig(system_instruction=sys_instruct),
-            contents=["Give me a short, imaginative drawing prompt for a two-player game."]
+            model="gemini-2.0-flash",  # Updated to a likely available model; adjust as needed
+            contents="You are a creative assistant. Generate a short, imaginative drawing prompt for a two-player game."
         )
         return response.text.strip() if response.text else "A singing fish"
     except Exception as e:
