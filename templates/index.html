@@ -15,7 +15,6 @@
             --warning: #ff9800;
             --info: #03a9f4;
         }
-        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
@@ -27,14 +26,12 @@
             flex-direction: column;
             align-items: center;
         }
-        
         .container {
             width: 100%;
             max-width: 800px;
             margin: 20px auto;
             padding: 20px;
         }
-        
         .card {
             background-color: white;
             border-radius: 12px;
@@ -42,38 +39,32 @@
             padding: 20px;
             margin-bottom: 20px;
         }
-        
         h1 {
             color: var(--primary);
             text-align: center;
             margin-bottom: 30px;
         }
-        
         #game-container {
             width: 100%;
             max-width: 700px;
             text-align: center;
         }
-        
         #login {
             display: flex;
             flex-direction: column;
             gap: 15px;
             padding: 20px;
         }
-        
         .form-group {
             display: flex;
             flex-direction: column;
             text-align: left;
             gap: 8px;
         }
-        
         label {
             font-weight: 600;
             color: var(--dark);
         }
-        
         input, select {
             padding: 10px 15px;
             border: 2px solid #ddd;
@@ -81,18 +72,15 @@
             font-size: 1rem;
             transition: border 0.3s;
         }
-        
         input:focus, select:focus {
             border-color: var(--primary);
             outline: none;
         }
-        
         .btn-container {
             display: flex;
             gap: 10px;
             margin-top: 10px;
         }
-        
         button {
             cursor: pointer;
             padding: 10px 20px;
@@ -105,12 +93,10 @@
             color: white;
             flex: 1;
         }
-        
         button:hover {
             background-color: var(--secondary);
             transform: translateY(-2px);
         }
-        
         #canvas-container {
             position: relative;
             width: 100%;
@@ -120,13 +106,11 @@
             background-color: white;
             overflow: hidden;
         }
-        
         #game-canvas {
             width: 100%;
             height: 100%;
             touch-action: none;
         }
-        
         #tools {
             display: flex;
             justify-content: center;
@@ -134,13 +118,11 @@
             margin: 15px 0;
             flex-wrap: wrap;
         }
-        
         .color-picker {
             display: flex;
             gap: 5px;
             align-items: center;
         }
-        
         #prompt {
             font-size: 1.5rem;
             margin: 15px 0;
@@ -150,7 +132,6 @@
             border-radius: 8px;
             background-color: rgba(67, 97, 238, 0.1);
         }
-        
         #guesses {
             height: 120px;
             overflow-y: auto;
@@ -160,17 +141,14 @@
             border-radius: 8px;
             text-align: left;
         }
-        
         .guess-item {
             padding: 8px;
             margin: 4px 0;
             border-radius: 6px;
         }
-        
         .guess-item:nth-child(odd) {
             background-color: rgba(67, 97, 238, 0.05);
         }
-        
         #scoreboard {
             font-size: 1.2rem;
             margin: 15px 0;
@@ -178,30 +156,25 @@
             justify-content: center;
             gap: 20px;
         }
-        
         .score-item {
             padding: 8px 15px;
             background-color: rgba(67, 97, 238, 0.1);
             border-radius: 8px;
             font-weight: 600;
         }
-        
         #status {
             font-size: 1.1rem;
             margin: 15px 0;
             color: var(--info);
             font-weight: 600;
         }
-        
         #next-round {
             background-color: var(--success);
             margin-top: 10px;
         }
-        
         #next-round:hover {
             background-color: #3d8b40;
         }
-        
         .loader {
             border: 4px solid rgba(0, 0, 0, 0.1);
             border-radius: 50%;
@@ -211,12 +184,10 @@
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
-        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
         .tool-btn {
             display: flex;
             align-items: center;
@@ -228,41 +199,32 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        
         .tool-btn:hover {
             background-color: #e4e6e9;
         }
-        
         .tool-btn i {
             margin-right: 4px;
         }
-        
         #brush-size {
             width: 100px;
         }
-        
         .guess-form {
             display: flex;
             gap: 10px;
         }
-        
         #guess {
             flex: 1;
         }
-        
         @media (max-width: 600px) {
             .container {
                 padding: 10px;
             }
-            
             #canvas-container {
                 height: 300px;
             }
-            
             .btn-container {
                 flex-direction: column;
             }
-            
             .guess-form {
                 flex-direction: column;
             }
@@ -322,10 +284,12 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script>
-        const socket = io();
+        console.log("JavaScript loaded");  // Debug log
+
+        const socket = io();  // Connect to the app's domain on Heroku
         let canvas;
         let roomId, username, isDrawer = false;
         let undoStack = [];
@@ -333,6 +297,7 @@
         let isDrawing = false;
 
         function initCanvas() {
+            console.log("Initializing canvas");  // Debug log
             canvas = new fabric.Canvas('game-canvas', { 
                 isDrawingMode: true,
                 backgroundColor: 'white'
@@ -341,7 +306,6 @@
             canvas.freeDrawingBrush.width = 5;
             canvas.freeDrawingBrush.color = '#000000';
             
-            // Override the default behavior to fix the issue with strokes not being sent
             canvas.on('path:created', function(e) {
                 if (isDrawer) {
                     const path = e.path;
@@ -362,6 +326,7 @@
         window.addEventListener('resize', resizeCanvas);
 
         function createRoom() {
+            console.log("createRoom called");  // Debug log
             username = document.getElementById('username').value;
             roomId = document.getElementById('room').value;
             
@@ -370,13 +335,19 @@
                 return;
             }
             
+            console.log("Sending fetch to /create_room");  // Debug log
             fetch('/create_room', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `room_id=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`
             })
-            .then(res => res.json())
+            .then(res => {
+                console.log("Response received:", res.status);  // Debug log
+                if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+                return res.json();
+            })
             .then(data => {
+                console.log("Data parsed:", data);  // Debug log
                 if (data.error) {
                     alert(data.error);
                     return;
@@ -385,11 +356,12 @@
             })
             .catch(err => {
                 console.error('Error creating room:', err);
-                alert('Error creating room. Please try again.');
+                alert('Error creating room: ' + err.message);
             });
         }
 
         function joinRoom() {
+            console.log("joinRoom called");  // Debug log
             username = document.getElementById('username').value;
             roomId = document.getElementById('room').value;
             
@@ -398,13 +370,19 @@
                 return;
             }
             
+            console.log("Sending fetch to /join_room");  // Debug log
             fetch('/join_room', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `room_id=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`
             })
-            .then(res => res.json())
+            .then(res => {
+                console.log("Response received:", res.status);  // Debug log
+                if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+                return res.json();
+            })
             .then(data => {
+                console.log("Data parsed:", data);  // Debug log
                 if (data.error) {
                     alert(data.error);
                     return;
@@ -413,22 +391,20 @@
             })
             .catch(err => {
                 console.error('Error joining room:', err);
-                alert('Error joining room. Please try again.');
+                alert('Error joining room: ' + err.message);
             });
         }
 
         function startGame(data) {
+            console.log("Starting game with data:", data);  // Debug log
             document.getElementById('login').style.display = 'none';
             document.getElementById('game').style.display = 'block';
             
-            // Initialize canvas
             initCanvas();
             resizeCanvas();
             
-            // Join the room
             socket.emit('join', { username, room: roomId });
             
-            // Set up role (drawer or guesser)
             if (data.prompt) {
                 isDrawer = true;
                 document.getElementById('prompt').textContent = `Draw: ${data.prompt}`;
@@ -436,11 +412,10 @@
                 canvas.isDrawingMode = true;
             } else {
                 isDrawer = false;
-                document.getElementById('prompt').textContent = 'Guess what's being drawn!';
+                document.getElementById('prompt').textContent = 'Guess what\'s being drawn!';
                 document.getElementById('guess-section').style.display = 'block';
                 canvas.isDrawingMode = false;
                 
-                // Apply any existing drawings if available
                 if (data.drawing && data.drawing.length > 0) {
                     data.drawing.forEach(stroke => {
                         if (stroke.type === 'clear') {
@@ -479,7 +454,6 @@
                 });
             }
             
-            // Handle pressing Enter in guess input
             document.getElementById('guess')?.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     submitGuess();
@@ -535,7 +509,7 @@
             undoStack = [];
             
             document.getElementById('guesses').innerHTML = '';
-            document.getElementById('prompt').textContent = isDrawer ? `Draw: ${data.prompt}` : 'Guess what's being drawn!';
+            document.getElementById('prompt').textContent = isDrawer ? `Draw: ${data.prompt}` : 'Guess what\'s being drawn!';
             document.getElementById('tools').style.display = isDrawer ? 'flex' : 'none';
             document.getElementById('guess-section').style.display = isDrawer ? 'none' : 'block';
             
@@ -592,5 +566,3 @@
     </script>
 </body>
 </html>
-                    
-                    
