@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SketchDuel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+        }
+        #game-container {
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        #login {
+            margin-bottom: 20px;
+        }
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            border: 1px solid #000;
+            background-color: #fff;
+        }
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none; /* Prevents scrolling on touch */
+        }
+        #tools {
+            margin: 10px 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        #prompt, #status, #scoreboard {
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+        #guesses {
+            height: 100px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 5px;
+            margin: 10px 0;
+        }
+        button, input, select {
+            padding: 5px;
+            font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="login">
+            <input type="text" id="username" placeholder="Your username" required>
+            <input type="text" id="room" placeholder="Room ID" required>
+            <button onclick="createRoom()">Create Room</button>
+            <button onclick="joinRoom()">Join Room</button>
+        </div>
+        <div id="game" style="display: none;">
+            <div id="prompt"></div>
+            <div id="canvas-container">
+                <canvas id="game-canvas"></canvas>
+            </div>
+            <div id="tools" style="display: none;">
+                <input type="color" id="color" value="#000000">
+                <select id="brush-size">
+                    <option value="2">Small</option>
+                    <option value="5" selected>Medium</option>
+                    <option value="10">Large</option>
+                </select>
+                <button onclick="clearCanvas()">Clear</button>
+                <button onclick="undo()">Undo</button>
+            </div>
+            <div id="guess-section" style="display: none;">
+                <input type="text" id="guess" placeholder="Your guess">
+                <button onclick="submitGuess()">Submit Guess</button>
+            </div>
+            <div id="guesses"></div>
+            <div id="scoreboard"></div>
+            <div id="status"></div>
+            <button id="next-round" onclick="nextRound()" style="display: none;">Next Round</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script>
+        const socket = io();
+        let canvas = new fabric.Canvas('game-canvas', { isDrawingMode: true });
+        let roomId, username, isDrawer = false, lastStroke = null;
+
+        canvas.freeDrawingBrush.width = 5;
+        canvas.freeDrawingBrush.color = '#000000';
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.setWidth(container.offsetWidth);
+            canvas.setHeight(container.offsetHeight);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function createRoom() {
+            username = document.getElementById('username').value;
+            roomId = document.getElementById('room').value;
+            fetch('/create_room', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `room_id=${roomId}&username=${username}`
+            }).then(res => res.json()).then(data => {
+                if (data.error) return alert(data.error);
+                startGame(data);
+            });
+        }
+
+        function joinRoom() {
+            username = document.getElementById('username').value;
+            roomId = document.getElementById('room').value;
+            fetch('/join_room', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `room_id=${roomId}&username=${username}`
+            }).then(res => res.json()).then(data => {
+                if (data.error) return alert(data.error);
+                startGame(data);
+            });
+        }
+
+        function startGame(data) {
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+            socket.emit('join', { username, room: roomId });
+            if (data.prompt) {
+                isDrawer = true;
+                document.getElementById('prompt').textContent = `Draw: ${data.prompt}`;
+                document.getElementById('tools').style.display = 'flex';
+            } else {
+                isDrawer = false;
+                document.getElementById('prompt').textContent = 'Guess what’s being drawn!';
+                document.getElementById('guess-section').style.display = 'block';
+                canvas.isDrawingMode = false;
+            }
+            setupCanvasEvents();
+        }
+
+        function setupCanvasEvents() {
+            if (isDrawer) {
+                document.getElementById('color').addEventListener('change', (e) => {
+                    canvas.freeDrawingBrush.color = e.target.value;
+                });
+                document.getElementById('brush-size').addEventListener('change', (e) => {
+                    canvas.freeDrawingBrush.width = parseInt(e.target.value);
+                });
+                canvas.on('path:created', (e) => {
+                    const stroke = e.path.toJSON();
+                    socket.emit('draw', { room: roomId, stroke });
+                    lastStroke = stroke;
+                });
+            }
+        }
+
+        socket.on('player_joined', (data) => {
+            document.getElementById('status').textContent = `${data.username} joined the game!`;
+        });
+
+        socket.on('draw_update', (stroke) => {
+            if (!isDrawer) {
+                fabric.util.enlivenObjects([stroke], (objects) => {
+                    objects.forEach(obj => canvas.add(obj));
+                }, 'fabric');
+            }
+        });
+
+        socket.on('new_guess', (data) => {
+            const guesses = document.getElementById('guesses');
+            guesses.innerHTML += `<p>${data.username}: ${data.guess}</p>`;
+            guesses.scrollTop = guesses.scrollHeight;
+        });
+
+        socket.on('correct_guess', (data) => {
+            document.getElementById('status').textContent = `${data.username} guessed correctly!`;
+            updateScoreboard(data.scores);
+            document.getElementById('next-round').style.display = 'block';
+        });
+
+        socket.on('new_round', (data) => {
+            isDrawer = data.drawer === username;
+            canvas.clear();
+            document.getElementById('guesses').innerHTML = '';
+            document.getElementById('prompt').textContent = isDrawer ? `Draw: ${data.prompt}` : 'Guess what’s being drawn!';
+            document.getElementById('tools').style.display = isDrawer ? 'flex' : 'none';
+            document.getElementById('guess-section').style.display = isDrawer ? 'none' : 'block';
+            canvas.isDrawingMode = isDrawer;
+            updateScoreboard(data.scores);
+            document.getElementById('status').textContent = `Round ${data.round}`;
+            document.getElementById('next-round').style.display = 'none';
+        });
+
+        function submitGuess() {
+            const guess = document.getElementById('guess').value;
+            socket.emit('guess', { room: roomId, guess, username });
+            document.getElementById('guess').value = '';
+        }
+
+        function clearCanvas() {
+            canvas.clear();
+            socket.emit('draw', { room: roomId, stroke: { type: 'clear' } });
+        }
+
+        function undo() {
+            if (lastStroke) {
+                canvas.remove(canvas.getObjects().pop());
+                socket.emit('draw', { room: roomId, stroke: { type: 'undo' } });
+            }
+        }
+
+        function nextRound() {
+            socket.emit('next_round', { room: roomId });
+        }
+
+        function updateScoreboard(scores) {
+            document.getElementById('scoreboard').textContent = `Scores: ${Object.entries(scores).map(([u, s]) => `${u}: ${s}`).join(', ')}`;
+        }
+    </script>
+</body>
+</html>
