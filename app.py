@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, join_room, leave_room, emit
 import os
-import requests
-import json
+import google.generativeai as genai
+from google.generativeai.types import GenerateContentConfig
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'  # Replace with a secure key
@@ -11,17 +11,19 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Store game rooms and their states
 rooms = {}
 
-# Replace with your Gemini API key (set as Heroku env variable)
+# Configure Gemini API
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key-here')
-GEMINI_API_URL = "https://api.gemini.com/v1/prompt"  # Hypothetical URL, adjust per actual API docs
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 def get_gemini_prompt():
     try:
-        headers = {"Authorization": f"Bearer {GEMINI_API_KEY}"}
-        payload = {"prompt": "Generate a short, creative drawing prompt for a game."}
-        response = requests.post(GEMINI_API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json().get("text", "A happy cloud")
+        sys_instruct = "You are a creative assistant. Generate unique and fun drawing prompts for a game."
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",  # Adjust model name as per actual availability
+            config=GenerateContentConfig(system_instruction=sys_instruct),
+            contents=["Give me a short, imaginative drawing prompt for a two-player game."]
+        )
+        return response.text.strip() if response.text else "A singing fish"
     except Exception as e:
         print(f"Error fetching prompt: {e}")
         return "A dancing tree"  # Fallback prompt
