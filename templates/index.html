@@ -245,8 +245,8 @@
                     <input type="text" id="room" placeholder="Enter room ID" required>
                 </div>
                 <div class="btn-container">
-                    <button onclick="createRoom()"><i class="fas fa-plus-circle"></i> Create Room</button>
-                    <button onclick="joinRoom()"><i class="fas fa-sign-in-alt"></i> Join Room</button>
+                    <button id="create-room-btn" onclick="createRoom()"><i class="fas fa-plus-circle"></i> Create Room</button>
+                    <button id="join-room-btn" onclick="joinRoom()"><i class="fas fa-sign-in-alt"></i> Join Room</button>
                 </div>
             </div>
             
@@ -289,19 +289,33 @@
     <script>
         console.log("JavaScript loaded");  // Debug log
 
-        const socket = io();  // Use the CDN-loaded SocketIO
-        socket.on('connect', () => {
-            console.log("SocketIO connected");  // Debug log
-        });
-        socket.on('connect_error', (error) => {
-            console.error("SocketIO connect error:", error);  // Debug log
-        });
+        let socket;
+        try {
+            socket = io();
+            socket.on('connect', () => {
+                console.log("SocketIO connected");  // Debug log
+            });
+            socket.on('connect_error', (error) => {
+                console.error("SocketIO connect error:", error);  // Debug log
+            });
+        } catch (error) {
+            console.error("Failed to initialize SocketIO:", error);
+        }
 
         let canvas;
         let roomId, username, isDrawer = false;
         let undoStack = [];
         let currentPath = [];
         let isDrawing = false;
+
+        // Add event listeners to buttons for debugging
+        document.getElementById('create-room-btn').addEventListener('click', () => {
+            console.log("Create Room button clicked");  // Debug log
+        });
+
+        document.getElementById('join-room-btn').addEventListener('click', () => {
+            console.log("Join Room button clicked");  // Debug log
+        });
 
         function initCanvas() {
             console.log("Initializing canvas");  // Debug log
@@ -338,6 +352,7 @@
             roomId = document.getElementById('room').value;
             
             if (!username || !roomId) {
+                console.log("Validation failed: username or roomId missing");  // Debug log
                 alert('Please enter both username and room ID');
                 return;
             }
@@ -349,13 +364,17 @@
                 body: `room_id=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`
             })
             .then(res => {
-                console.log("Response received:", res.status, res.url);  // Debug log
-                if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+                console.log("Response received from /create_room:", res.status, res.url);  // Debug log
+                if (!res.ok) {
+                    console.log("Response not OK, status:", res.status);  // Debug log
+                    throw new Error(`HTTP error! Status: ${res.status}`);
+                }
                 return res.json();
             })
             .then(data => {
-                console.log("Data parsed:", data);  // Debug log
+                console.log("Data parsed from /create_room:", data);  // Debug log
                 if (data.error) {
+                    console.log("Error response from server:", data.error);  // Debug log
                     alert(data.error);
                     return;
                 }
@@ -373,6 +392,7 @@
             roomId = document.getElementById('room').value;
             
             if (!username || !roomId) {
+                console.log("Validation failed: username or roomId missing");  // Debug log
                 alert('Please enter both username and room ID');
                 return;
             }
@@ -384,13 +404,17 @@
                 body: `room_id=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`
             })
             .then(res => {
-                console.log("Response received:", res.status, res.url);  // Debug log
-                if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+                console.log("Response received from /join_room:", res.status, res.url);  // Debug log
+                if (!res.ok) {
+                    console.log("Response not OK, status:", res.status);  // Debug log
+                    throw new Error(`HTTP error! Status: ${res.status}`);
+                }
                 return res.json();
             })
             .then(data => {
-                console.log("Data parsed:", data);  // Debug log
+                console.log("Data parsed from /join_room:", data);  // Debug log
                 if (data.error) {
+                    console.log("Error response from server:", data.error);  // Debug log
                     alert(data.error);
                     return;
                 }
