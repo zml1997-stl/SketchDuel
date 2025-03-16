@@ -4,15 +4,15 @@ import os
 import google.generativeai as genai
 import random
 
-app = Flask(__name__, static_folder="static", static_url_path="/static")
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Replace with a secure key
-socketio = SocketIO(app, cors_allowed_origins="*")
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')  # Use Heroku env var
+socketio = SocketIO(app, cors_allowed_origins="*")  # Allow all origins for Heroku
 
 # Store game rooms and their states
 rooms = {}
 
 # Configure Gemini API
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key-here')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key-here')  # Use Heroku env var
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Fallback simple prompt list if API fails
@@ -30,7 +30,6 @@ def get_simple_prompt():
             "Provide only ONE word, nothing else."
         )
         prompt = response.text.strip()
-        # If response contains more than two words, use fallback
         if len(prompt.split()) > 2:
             return random.choice(SIMPLE_PROMPTS)
         return prompt
@@ -40,12 +39,15 @@ def get_simple_prompt():
 
 @app.route('/')
 def index():
+    print("Serving index.html")  # Debug log
     return render_template('index.html')
 
 @app.route('/create_room', methods=['POST'])
 def create_room():
+    print("Received POST request to /create_room")  # Debug log
     room_id = request.form.get('room_id')
     username = request.form.get('username')
+    print(f"Room ID: {room_id}, Username: {username}")  # Debug log
     if room_id in rooms:
         return jsonify({"error": "Room already exists"}), 400
     rooms[room_id] = {
@@ -61,8 +63,10 @@ def create_room():
 
 @app.route('/join_room', methods=['POST'])
 def join_room_route():
+    print("Received POST request to /join_room")  # Debug log
     room_id = request.form.get('room_id')
     username = request.form.get('username')
+    print(f"Room ID: {room_id}, Username: {username}")  # Debug log
     if room_id not in rooms:
         return jsonify({"error": "Room does not exist"}), 404
     if len(rooms[room_id]["players"]) >= 2:
@@ -73,11 +77,10 @@ def join_room_route():
     rooms[room_id]["players"].append(username)
     rooms[room_id]["scores"][username] = 0
     
-    # Send the current drawing state to the new player
     return jsonify({
         "room_id": room_id, 
         "prompt": None,  # Guesser doesn't see prompt
-        "drawing": rooms[room_id]["drawing"]  # Send existing drawing data
+        "drawing": rooms[room_id]["drawing"]
     })
 
 @socketio.on('join')
@@ -93,7 +96,6 @@ def handle_draw(data):
     if room in rooms:
         stroke = data['stroke']
         rooms[room]["drawing"].append(stroke)
-        # Broadcast to everyone in the room except sender
         emit('draw_update', stroke, room=room, include_self=False)
 
 @socketio.on('guess')
@@ -105,7 +107,6 @@ def handle_guess(data):
         rooms[room]["guesses"].append(guess)
         emit('new_guess', {'username': username, 'guess': guess}, room=room)
         
-        # Check if guess is correct (case insensitive)
         room_prompt = rooms[room]["prompt"].lower()
         user_guess = guess.lower()
         
@@ -125,7 +126,6 @@ def switch_roles(room):
     rooms[room]["guesses"] = []
     rooms[room]["prompt"] = get_simple_prompt()
     
-    # Switch drawer role
     if len(rooms[room]["players"]) >= 2:
         rooms[room]["drawer"] = rooms[room]["players"][1] if rooms[room]["drawer"] == rooms[room]["players"][0] else rooms[room]["players"][0]
     
@@ -137,4 +137,5 @@ def switch_roles(room):
     }, room=room)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=True)
+    port = int(os.getenv('PORT', 5000))  # Heroku assigns PORT
+    socketio.run(app, host='0.0.0.0', port=port, debug=True)
