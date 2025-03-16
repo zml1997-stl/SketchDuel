@@ -284,12 +284,19 @@
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <script>
         console.log("JavaScript loaded");  // Debug log
 
-        const socket = io();  // Connect to the app's domain on Heroku
+        const socket = io();  // Use the CDN-loaded SocketIO
+        socket.on('connect', () => {
+            console.log("SocketIO connected");  // Debug log
+        });
+        socket.on('connect_error', (error) => {
+            console.error("SocketIO connect error:", error);  // Debug log
+        });
+
         let canvas;
         let roomId, username, isDrawer = false;
         let undoStack = [];
@@ -342,7 +349,7 @@
                 body: `room_id=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`
             })
             .then(res => {
-                console.log("Response received:", res.status);  // Debug log
+                console.log("Response received:", res.status, res.url);  // Debug log
                 if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
                 return res.json();
             })
@@ -377,7 +384,7 @@
                 body: `room_id=${encodeURIComponent(roomId)}&username=${encodeURIComponent(username)}`
             })
             .then(res => {
-                console.log("Response received:", res.status);  // Debug log
+                console.log("Response received:", res.status, res.url);  // Debug log
                 if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
                 return res.json();
             })
