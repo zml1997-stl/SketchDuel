@@ -245,8 +245,8 @@
                     <input type="text" id="room" placeholder="Enter room ID" required>
                 </div>
                 <div class="btn-container">
-                    <button id="create-room-btn" onclick="createRoom()"><i class="fas fa-plus-circle"></i> Create Room</button>
-                    <button id="join-room-btn" onclick="joinRoom()"><i class="fas fa-sign-in-alt"></i> Join Room</button>
+                    <button id="create-room-btn"><i class="fas fa-plus-circle"></i> Create Room</button>
+                    <button id="join-room-btn"><i class="fas fa-sign-in-alt"></i> Join Room</button>
                 </div>
             </div>
             
@@ -290,17 +290,39 @@
         console.log("JavaScript loaded");  // Debug log
 
         let socket;
-        try {
-            socket = io();
-            socket.on('connect', () => {
-                console.log("SocketIO connected");  // Debug log
-            });
-            socket.on('connect_error', (error) => {
-                console.error("SocketIO connect error:", error);  // Debug log
-            });
-        } catch (error) {
-            console.error("Failed to initialize SocketIO:", error);
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        const reconnectInterval = 5000; // 5 seconds
+
+        function connectSocket() {
+            try {
+                socket = io();
+                socket.on('connect', () => {
+                    console.log("SocketIO connected");  // Debug log
+                    reconnectAttempts = 0; // Reset on successful connection
+                });
+                socket.on('connect_error', (error) => {
+                    console.error("SocketIO connect error:", error);  // Debug log
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        console.log(`Reconnecting attempt ${reconnectAttempts} of ${maxReconnectAttempts}`);
+                        setTimeout(connectSocket, reconnectInterval);
+                    } else {
+                        console.error("Max reconnect attempts reached. Giving up.");
+                    }
+                });
+                socket.on('disconnect', () => {
+                    console.log("SocketIO disconnected. Attempting to reconnect...");
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        setTimeout(connectSocket, reconnectInterval);
+                    }
+                });
+            } catch (error) {
+                console.error("Failed to initialize SocketIO:", error);
+            }
         }
+
+        connectSocket(); // Initial connection attempt
 
         let canvas;
         let roomId, username, isDrawer = false;
@@ -308,13 +330,15 @@
         let currentPath = [];
         let isDrawing = false;
 
-        // Add event listeners to buttons for debugging
+        // Explicit event listeners for buttons
         document.getElementById('create-room-btn').addEventListener('click', () => {
             console.log("Create Room button clicked");  // Debug log
+            createRoom();
         });
 
         document.getElementById('join-room-btn').addEventListener('click', () => {
             console.log("Join Room button clicked");  // Debug log
+            joinRoom();
         });
 
         function initCanvas() {
@@ -352,12 +376,12 @@
             roomId = document.getElementById('room').value;
             
             if (!username || !roomId) {
-                console.log("Validation failed: username or roomId missing");  // Debug log
+                console.log("Validation failed: username or roomId missing", { username, roomId });  // Debug log
                 alert('Please enter both username and room ID');
                 return;
             }
             
-            console.log("Sending fetch to /create_room");  // Debug log
+            console.log("Sending fetch to /create_room", { roomId, username });  // Debug log
             fetch('/create_room', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -392,12 +416,12 @@
             roomId = document.getElementById('room').value;
             
             if (!username || !roomId) {
-                console.log("Validation failed: username or roomId missing");  // Debug log
+                console.log("Validation failed: username or roomId missing", { username, roomId });  // Debug log
                 alert('Please enter both username and room ID');
                 return;
             }
             
-            console.log("Sending fetch to /join_room");  // Debug log
+            console.log("Sending fetch to /join_room", { roomId, username });  // Debug log
             fetch('/join_room', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
