@@ -18,7 +18,7 @@ except ImportError as e:
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
-socketio = SocketIO(app, cors_allowed_origins="*", engineio_logger=True)
+socketio = SocketIO(app, cors_allowed_origins="*", engineio_logger=True, async_mode='eventlet')
 logger.info("Flask and SocketIO initialized")
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key')
@@ -114,7 +114,7 @@ def on_join(data):
         emit('error', {'message': 'Room not found'})
         return
     
-    join_room(room_code)
+    join_room(room=room_code)  # Fix: Use keyword argument
     game = game_rooms[room_code]
     player_sid = request.sid
     
@@ -123,7 +123,7 @@ def on_join(data):
         game['state']['ready'][player_sid] = False
         logger.info(f"Player {player_sid} joined room {room_code}")
     
-    emit('player_update', {'players': len(game['players'])}, room=room_code)
+    emit('player_update', {'players': len(game['players']), 'ready': sum(game['state']['ready'].values())}, room=room_code)
 
 @socketio.on('ready')
 def on_ready(data):
@@ -147,7 +147,7 @@ def on_ready(data):
         logger.info(f"Game starting in room {room_code} with prompt: {game['state']['prompt']}")
         emit('game_start', {
             'drawer': game['state']['drawer'],
-            'prompt': game['state']['prompt'] if player_sid == game['state']['drawer'] else None
+            'prompt': game['state']['prompt'] if request.sid == game['state']['drawer'] else None
         }, room=room_code)
 
 @socketio.on('draw')
@@ -191,7 +191,7 @@ def switch_roles(room_code):
     game = game_rooms[room_code]
     game['state']['drawer'], game['state']['guesser'] = game['state']['guesser'], game['state']['drawer']
     game['state']['round'] += 1
-    game['state'][' instruments'] = 60
+    game['state']['time_left'] = 60
     game['state']['prompt'] = get_gemini_prompt(random.choice(PROMPT_CATEGORIES))
     emit('new_round', {
         'drawer': game['state']['drawer'],
