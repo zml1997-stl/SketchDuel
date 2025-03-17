@@ -57,15 +57,25 @@
         const roomCode = "{{ room_code }}";
         let isDrawer = false;
 
-        socket.emit('join', { room_code: roomCode });
+        socket.on('connect', () => {
+            console.log("Socket connected:", socket.id);
+            socket.emit('join', { room_code: roomCode });
+        });
+
+        socket.on('error', (data) => {
+            console.error("Socket error:", data.message);
+            $('#prompt').text(data.message);
+        });
 
         $('#readyBtn').on('click', function() {
+            console.log("Ready clicked");
             socket.emit('ready', { room_code: roomCode });
             $('#readyBtn').hide();
         });
 
         socket.on('player_update', (data) => {
-            $('#prompt').text(`Players: ${data.players}/2. Waiting for all to be ready...`);
+            console.log("Player update:", data);
+            $('#prompt').text(`Players: ${data.players}/2, Ready: ${data.ready}/2`);
         });
 
         socket.on('game_start', (data) => {
