@@ -9,16 +9,14 @@
 </head>
 <body>
     <div class="container-fluid d-flex flex-column min-vh-100 p-2">
-        <!-- Game Info -->
         <div class="row mb-2">
             <div class="col-12 text-center">
                 <h2>Room: {{ room_code }}</h2>
-                <p id="prompt" class="fw-bold"></p>
+                <p id="prompt" class="fw-bold">Waiting for players...</p>
                 <p id="timer" class="text-muted">Time Left: 60s</p>
+                <button id="readyBtn" class="btn btn-success mt-2">I'm Ready</button>
             </div>
         </div>
-
-        <!-- Canvas and Tools -->
         <div class="row flex-grow-1 mb-2">
             <div class="col-12 col-md-8">
                 <canvas id="drawingCanvas" class="border w-100" style="max-height: 50vh;"></canvas>
@@ -61,7 +59,17 @@
 
         socket.emit('join', { room_code: roomCode });
 
+        $('#readyBtn').on('click', function() {
+            socket.emit('ready', { room_code: roomCode });
+            $('#readyBtn').hide();
+        });
+
+        socket.on('player_update', (data) => {
+            $('#prompt').text(`Players: ${data.players}/2. Waiting for all to be ready...`);
+        });
+
         socket.on('game_start', (data) => {
+            console.log("Game start received:", data);
             isDrawer = socket.id === data.drawer;
             $('#prompt').text(isDrawer ? `Draw: ${data.prompt}` : 'Guess the drawing!');
             $('#tools').toggle(isDrawer);
@@ -109,7 +117,7 @@
                 $('#timer').text(`Time Left: ${timeLeft}s`);
                 if (timeLeft <= 0) {
                     clearInterval(timer);
-                    if (isDrawer) socket.emit('guess', { room_code: roomCode, guess: '' }); // Trigger round end
+                    if (isDrawer) socket.emit('guess', { room_code: roomCode, guess: '' });
                 }
             }, 1000);
         }
