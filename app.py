@@ -10,12 +10,10 @@ logger = logging.getLogger(__name__)
 
 logger.info("Starting app.py initialization")
 
-# Import Gemini API with version check
+# Import Gemini API correctly
 try:
-    from google import genai
-    from google.genai import types
-    import google.generativeai as google_genai
-    logger.info(f"Imported google-generativeai version: {google_genai.__version__}")
+    import google.generativeai as genai
+    logger.info(f"Imported google.generativeai version: {genai.__version__}")
 except ImportError as e:
     logger.error(f"Failed to import google.generativeai: {e}")
     raise
@@ -29,7 +27,7 @@ logger.info("Flask and SocketIO initialized")
 # Configure Gemini API client
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key')
 try:
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.GenerativeAI(api_key=GEMINI_API_KEY)  # Updated client initialization
     logger.info("Gemini API client initialized")
 except Exception as e:
     logger.error(f"Failed to initialize Gemini client: {e}")
@@ -49,10 +47,10 @@ def get_gemini_prompt(category):
         logger.warning("Gemini client unavailable, using fallback prompt")
         return f"A {category.lower()} (Gemini API unavailable)"
     try:
-        response = client.models.generate_content(
+        response = client.generate_content(
             model="gemini-2.0-flash",
             contents=[f"Generate a creative drawing prompt for a game of Pictionary in the category: {category}"],
-            config=types.GenerateContentConfig(
+            generation_config=genai.types.GenerationConfig(
                 max_output_tokens=50,
                 temperature=0.7
             )
@@ -143,7 +141,6 @@ def on_draw(data):
     room_code = data.get('room_code')
     if room_code in game_rooms:
         emit('draw_update', data, room=room_code, include_self=False)
-        # logger.debug(f"Drawing update sent to room {room_code}")
 
 @socketio.on('guess')
 def on_guess(data):
