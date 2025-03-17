@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SketchDuel - Game</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container-fluid d-flex flex-column min-vh-100 p-2">
+        <!-- Game Info -->
+        <div class="row mb-2">
+            <div class="col-12 text-center">
+                <h2>Room: {{ room_code }}</h2>
+                <p id="prompt" class="fw-bold"></p>
+                <p id="timer" class="text-muted">Time Left: 60s</p>
+            </div>
+        </div>
+
+        <!-- Canvas and Tools -->
+        <div class="row flex-grow-1 mb-2">
+            <div class="col-12 col-md-8">
+                <canvas id="drawingCanvas" class="border w-100" style="max-height: 50vh;"></canvas>
+                <div id="tools" class="mt-2 d-flex flex-wrap gap-2" style="display: none;">
+                    <input type="color" id="colorPicker" value="#000000">
+                    <select id="brushSize" class="form-select w-auto">
+                        <option value="2">Thin</option>
+                        <option value="5" selected>Medium</option>
+                        <option value="10">Thick</option>
+                    </select>
+                    <button id="eraserBtn" class="btn btn-secondary">Eraser</button>
+                    <button id="undoBtn" class="btn btn-outline-secondary">Undo</button>
+                    <button id="clearBtn" class="btn btn-danger">Clear</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div id="scoreboard" class="card p-2 mb-2">
+                    <h5>Scoreboard</h5>
+                    <ul id="scoresList" class="list-unstyled"></ul>
+                </div>
+                <div id="chat" class="card p-2">
+                    <h5>Chat</h5>
+                    <div id="chatMessages" class="border p-2 mb-2" style="height: 20vh; overflow-y: auto;"></div>
+                    <form id="guessForm">
+                        <input type="text" id="guessInput" class="form-control mb-2" placeholder="Type your guess...">
+                        <button type="submit" class="btn btn-primary w-100">Send</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+    <script>
+        const socket = io();
+        const roomCode = "{{ room_code }}";
+        let isDrawer = false;
+
+        socket.emit('join', { room_code: roomCode });
+
+        socket.on('game_start', (data) => {
+            isDrawer = socket.id === data.drawer;
+            $('#prompt').text(isDrawer ? `Draw: ${data.prompt}` : 'Guess the drawing!');
+            $('#tools').toggle(isDrawer);
+            $('#guessForm').toggle(!isDrawer);
+            startTimer();
+        });
+
+        socket.on('new_round', (data) => {
+            isDrawer = socket.id === data.drawer;
+            $('#prompt').text(isDrawer ? `Draw: ${data.prompt}` : 'Guess the drawing!');
+            $('#tools').toggle(isDrawer);
+            $('#guessForm').toggle(!isDrawer);
+            updateScores(data.scores);
+            clearCanvas();
+            startTimer();
+        });
+
+        socket.on('guess_correct', (data) => {
+            updateScores(data.scores);
+        });
+
+        socket.on('chat_message', (data) => {
+            $('#chatMessages').append(`<p>${data.message}</p>`);
+            $('#chatMessages')[0].scrollTop = $('#chatMessages')[0].scrollHeight;
+        });
+
+        socket.on('player_left', () => {
+            $('#prompt').text('Other player disconnected. Game over.');
+            $('#tools').hide();
+            $('#guessForm').hide();
+        });
+
+        function updateScores(scores) {
+            $('#scoresList').empty();
+            for (let sid in scores) {
+                $('#scoresList').append(`<li>Player ${sid.slice(0, 4)}: ${scores[sid]}</li>`);
+            }
+        }
+
+        function startTimer() {
+            let timeLeft = 60;
+            $('#timer').text(`Time Left: ${timeLeft}s`);
+            const timer = setInterval(() => {
+                timeLeft--;
+                $('#timer').text(`Time Left: ${timeLeft}s`);
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    if (isDrawer) socket.emit('guess', { room_code: roomCode, guess: '' }); // Trigger round end
+                }
+            }, 1000);
+        }
+
+        function clearCanvas() {
+            const canvas = document.getElementById('drawingCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    </script>
+</body>
+</html>
