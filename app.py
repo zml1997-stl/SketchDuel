@@ -17,7 +17,7 @@ except ImportError as e:
     raise
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')  # Ensure this is unique
 socketio = SocketIO(app, cors_allowed_origins="*", engineio_logger=True, async_mode='eventlet')
 logger.info("Flask and SocketIO initialized")
 
@@ -80,7 +80,8 @@ def create_room():
         }
     }
     session['room_code'] = room_code
-    logger.info(f"Created room: {room_code}")
+    session.modified = True  # Force session save
+    logger.info(f"Created room: {room_code}, session: {session.get('room_code')}")
     return jsonify({'room_code': room_code})
 
 @app.route('/join_room', methods=['POST'])
@@ -94,12 +95,14 @@ def join_room():
         return jsonify({'error': 'Room is full'}), 400
     
     session['room_code'] = room_code
-    logger.info(f"Joined room: {room_code}")
+    session.modified = True  # Force session save
+    logger.info(f"Joined room: {room_code}, session: {session.get('room_code')}")
     return jsonify({'room_code': room_code})
 
 @app.route('/game')
 def game():
     room_code = session.get('room_code')
+    logger.info(f"Accessing /game, session room_code: {room_code}, game_rooms: {list(game_rooms.keys())}")
     if not room_code or room_code not in game_rooms:
         logger.warning("Invalid room code, redirecting to index")
         return redirect('/')
@@ -114,7 +117,7 @@ def on_join(data):
         emit('error', {'message': 'Room not found'})
         return
     
-    join_room(room=room_code)  # Fix: Use keyword argument
+    join_room(room=room_code)
     game = game_rooms[room_code]
     player_sid = request.sid
     
