@@ -1,141 +1,156 @@
-from flask import Flask, render_template, request, jsonify
-from flask_socketio import SocketIO, join_room, leave_room, emit
-import os
-import google.generativeai as genai
+from flask import Flask, render_template, request, session, jsonify
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
+from google import genai
+from google.genai import types
+import os
 
+# Initialize Flask app and SocketIO
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', ping_timeout=60, ping_interval=25)
+app.config['SECRET_KEY'] = 'your-secret-key-here'  # Replace with a secure key
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Store game rooms and their states
-rooms = {}
+# Configure Gemini API client
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key')  # Set via Heroku config vars
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Configure Gemini API
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'your-gemini-api-key-here')
-genai.configure(api_key=GEMINI_API_KEY)
+# In-memory storage for game rooms and states
+game_rooms = {}  # {room_code: {'players': [sid1, sid2], 'state': {...}}}
 
-# Fallback simple prompt list if API fails
-SIMPLE_PROMPTS = [
-    "cat", "dog", "house", "tree", "car", "sun", "moon", "star", 
-    "bird", "fish", "boat", "plane", "banana", "apple", "pizza",
-    "book", "hat", "shoe", "chair", "table", "flower", "clock"
-]
+# Categories for prompts
+PROMPT_CATEGORIES = ['Animals', 'Objects', 'Actions', 'Places']
 
-def get_simple_prompt():
+# Generate a random room code
+def generate_room_code():
+    return ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=4))
+
+# Fetch a prompt from Gemini API
+def get_gemini_prompt(category):
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(
-            "Generate a single common noun that would be easy to draw and guess in a game like Pictionary. "
-            "Provide only ONE word, nothing else."
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[f"Generate a creative drawing prompt for a game of Pictionary in the category: {category}"],
+            config=types.GenerateContentConfig(
+                max_output_tokens=50,
+                temperature=0.7
+            )
         )
-        prompt = response.text.strip()
-        if len(prompt.split()) > 2:
-            return random.choice(SIMPLE_PROMPTS)
-        return prompt
+        return response.text.strip()
     except Exception as e:
-        print(f"Error fetching prompt: {e}")
-        return random.choice(SIMPLE_PROMPTS)
+        return f"A {category.lower()} (API error: {str(e)})"
 
+# Routes
 @app.route('/')
 def index():
-    print("Serving index.html")
     return render_template('index.html')
 
 @app.route('/create_room', methods=['POST'])
 def create_room():
-    print("Received POST request to /create_room")
-    room_id = request.form.get('room_id')
-    username = request.form.get('username')
-    print(f"Room ID: {room_id}, Username: {username}")
-    if room_id in rooms:
-        return jsonify({"error": "Room already exists"}), 400
-    rooms[room_id] = {
-        "players": [username],
-        "drawer": username,
-        "prompt": get_simple_prompt(),
-        "guesses": [],
-        "drawing": [],
-        "round": 1,
-        "scores": {username: 0}
+    room_code = generate_room_code()
+    while room_code in game_rooms:
+        room_code = generate_room_code()
+    
+    game_rooms[room_code] = {
+        'players': [],
+        'state': {
+            'drawer': None,
+            'guesser': None,
+            'prompt': None,
+            'round': 1,
+            'scores': {sid: 0 for sid in []},
+            'mode': 'timed',  # Default mode
+            'time_left': 60   # 60 seconds per round
+        }
     }
-    return jsonify({"room_id": room_id, "prompt": rooms[room_id]["prompt"] if username == rooms[room_id]["drawer"] else None})
+    session['room_code'] = room_code
+    return jsonify({'room_code': room_code})
 
 @app.route('/join_room', methods=['POST'])
-def join_room_route():
-    print("Received POST request to /join_room")
-    room_id = request.form.get('room_id')
-    username = request.form.get('username')
-    print(f"Room ID: {room_id}, Username: {username}")
-    if room_id not in rooms:
-        return jsonify({"error": "Room does not exist"}), 404
-    if len(rooms[room_id]["players"]) >= 2:
-        return jsonify({"error": "Room is full"}), 400
-    if username in rooms[room_id]["players"]:
-        return jsonify({"error": "Username already taken in this room"}), 400
+def join_room():
+    room_code = request.form.get('room_code').upper()
+    if room_code not in game_rooms or len(game_rooms[room_code]['players']) >= 2:
+        return jsonify({'error': 'Room not found or full'}), 400
     
-    rooms[room_id]["players"].append(username)
-    rooms[room_id]["scores"][username] = 0
-    
-    return jsonify({
-        "room_id": room_id, 
-        "prompt": None,
-        "drawing": rooms[room_id]["drawing"]
-    })
+    session['room_code'] = room_code
+    return jsonify({'room_code': room_code})
 
+@app.route('/game')
+def game():
+    room_code = session.get('room_code')
+    if not room_code or room_code not in game_rooms:
+        return redirect('/')
+    return render_template('game.html', room_code=room_code)
+
+# WebSocket Events
 @socketio.on('join')
 def on_join(data):
-    username = data['username']
-    room = data['room']
-    join_room(room)
-    emit('player_joined', {'username': username}, room=room)
+    room_code = data['room_code']
+    if room_code not in game_rooms:
+        return
+    
+    join_room(room_code)
+    game = game_rooms[room_code]
+    player_sid = request.sid
+    
+    if player_sid not in game['players']:
+        game['players'].append(player_sid)
+    
+    # Start game when two players join
+    if len(game['players']) == 2:
+        game['state']['drawer'] = game['players'][0]
+        game['state']['guesser'] = game['players'][1]
+        game['state']['scores'] = {sid: 0 for sid in game['players']}
+        game['state']['prompt'] = get_gemini_prompt(random.choice(PROMPT_CATEGORIES))
+        emit('game_start', {
+            'drawer': game['state']['drawer'],
+            'prompt': game['state']['prompt'] if player_sid == game['state']['drawer'] else None
+        }, room=room_code)
 
 @socketio.on('draw')
-def handle_draw(data):
-    room = data['room']
-    if room in rooms:
-        stroke = data['stroke']
-        rooms[room]["drawing"].append(stroke)
-        emit('draw_update', stroke, room=room, include_self=False)
+def on_draw(data):
+    room_code = data['room_code']
+    if room_code in game_rooms:
+        emit('draw_update', data, room=room_code, include_self=False)
 
 @socketio.on('guess')
-def handle_guess(data):
-    room = data['room']
+def on_guess(data):
+    room_code = data['room_code']
     guess = data['guess']
-    username = data['username']
-    if room in rooms:
-        rooms[room]["guesses"].append(guess)
-        emit('new_guess', {'username': username, 'guess': guess}, room=room)
-        
-        room_prompt = rooms[room]["prompt"].lower()
-        user_guess = guess.lower()
-        
-        if user_guess == room_prompt or user_guess in room_prompt.split() or room_prompt in user_guess.split():
-            rooms[room]["scores"][username] += 1
-            emit('correct_guess', {'username': username, 'scores': rooms[room]["scores"]}, room=room)
-
-@socketio.on('next_round')
-def next_round(data):
-    room = data['room']
-    if room in rooms:
-        switch_roles(room)
-
-def switch_roles(room):
-    rooms[room]["round"] += 1
-    rooms[room]["drawing"] = []
-    rooms[room]["guesses"] = []
-    rooms[room]["prompt"] = get_simple_prompt()
+    if room_code not in game_rooms:
+        return
     
-    if len(rooms[room]["players"]) >= 2:
-        rooms[room]["drawer"] = rooms[room]["players"][1] if rooms[room]["drawer"] == rooms[room]["players"][0] else rooms[room]["players"][0]
-    
+    game = game_rooms[room_code]
+    if request.sid == game['state']['guesser']:
+        if guess.lower() in game['state']['prompt'].lower():
+            game['state']['scores'][request.sid] += 1
+            emit('guess_correct', {'scores': game['state']['scores']}, room=room_code)
+            switch_roles(room_code)
+        else:
+            emit('chat_message', {'message': f"Guess: {guess}"}, room=room_code)
+
+@socketio.on('disconnect')
+def on_disconnect():
+    room_code = session.get('room_code')
+    if room_code and room_code in game_rooms:
+        game = game_rooms[room_code]
+        game['players'] = [p for p in game['players'] if p != request.sid]
+        if not game['players']:
+            del game_rooms[room_code]
+        else:
+            emit('player_left', room=room_code)
+
+# Switch roles and reset round
+def switch_roles(room_code):
+    game = game_rooms[room_code]
+    game['state']['drawer'], game['state']['guesser'] = game['state']['guesser'], game['state']['drawer']
+    game['state']['round'] += 1
+    game['state']['time_left'] = 60
+    game['state']['prompt'] = get_gemini_prompt(random.choice(PROMPT_CATEGORIES))
     emit('new_round', {
-        'prompt': rooms[room]["prompt"],
-        'drawer': rooms[room]["drawer"],
-        'round': rooms[room]["round"],
-        'scores': rooms[room]["scores"]
-    }, room=room)
+        'drawer': game['state']['drawer'],
+        'prompt': game['state']['prompt'] if request.sid == game['state']['drawer'] else None,
+        'scores': game['state']['scores']
+    }, room=room_code)
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000)
