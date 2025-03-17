@@ -45,7 +45,7 @@
                         if (data.room_code) {
                             $('#roomCode strong').text(data.room_code);
                             $('#roomCode').show();
-                            setTimeout(() => window.location.href = '/game', 500);
+                            setTimeout(() => window.location.href = '/game', 1000); // Increased delay
                         } else {
                             $('#createError').text('Failed to create room').show();
                         }
@@ -68,7 +68,7 @@
                     success: function(data) {
                         console.log("Join room response:", data);
                         if (data.room_code) {
-                            setTimeout(() => window.location.href = '/game', 500);
+                            setTimeout(() => window.location.href = '/game', 1000); // Increased delay
                         } else {
                             $('#joinError').text('Failed to join room').show();
                         }
