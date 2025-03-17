@@ -11,7 +11,6 @@
     <div class="container d-flex flex-column justify-content-center align-items-center min-vh-100">
         <h1 class="text-center mb-4">SketchDuel</h1>
         
-        <!-- Create Room Section -->
         <div class="card p-4 mb-4 w-100" style="max-width: 400px;">
             <h3 class="text-center">Create a Game</h3>
             <button id="createRoomBtn" class="btn btn-primary w-100">Create Room</button>
@@ -19,7 +18,6 @@
             <p id="createError" class="text-danger text-center mt-3" style="display: none;"></p>
         </div>
 
-        <!-- Join Room Section -->
         <div class="card p-4 w-100" style="max-width: 400px;">
             <h3 class="text-center">Join a Game</h3>
             <form id="joinRoomForm">
@@ -35,51 +33,49 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
-            console.log("Document ready, attaching event listeners");
+            console.log("Lobby page loaded");
 
-            // Create Room
             $('#createRoomBtn').on('click', function() {
-                console.log("Create Room button clicked");
+                console.log("Create Room clicked");
                 $.ajax({
                     url: '/create_room',
                     type: 'POST',
                     success: function(data) {
-                        console.log("Create room success:", data);
+                        console.log("Create room response:", data);
                         if (data.room_code) {
                             $('#roomCode strong').text(data.room_code);
                             $('#roomCode').show();
-                            window.location.href = '/game';
+                            setTimeout(() => window.location.href = '/game', 500);
                         } else {
                             $('#createError').text('Failed to create room').show();
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error("Create room error:", status, error);
-                        $('#createError').text('Error creating room: ' + error).show();
+                        console.error("Create room failed:", status, error, xhr.responseText);
+                        $('#createError').text('Error: ' + (xhr.responseJSON?.error || error)).show();
                     }
                 });
             });
 
-            // Join Room
             $('#joinRoomForm').on('submit', function(e) {
                 e.preventDefault();
-                console.log("Join Room form submitted");
                 const roomCode = $('#roomCodeInput').val().toUpperCase();
+                console.log("Join Room submitted with code:", roomCode);
                 $.ajax({
                     url: '/join_room',
                     type: 'POST',
                     data: { room_code: roomCode },
                     success: function(data) {
-                        console.log("Join room success:", data);
+                        console.log("Join room response:", data);
                         if (data.room_code) {
-                            window.location.href = '/game';
+                            setTimeout(() => window.location.href = '/game', 500);
                         } else {
                             $('#joinError').text('Failed to join room').show();
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error("Join room error:", status, error);
-                        $('#joinError').text('Error: ' + xhr.responseJSON?.error || 'Unknown error').show();
+                        console.error("Join room failed:", status, error, xhr.responseText);
+                        $('#joinError').text('Error: ' + (xhr.responseJSON?.error || error)).show();
                     }
                 });
             });
