@@ -1,0 +1,83 @@
+body {
+    background-color: #f8f9fa;
+    font-family: Arial, sans-serif;
+}
+
+/* Lobby Styles */
+.card {
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Game Styles */
+#drawingCanvas {
+    background-color: #fff;
+    touch-action: none; /* Prevents scrolling on touch devices */
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Tools */
+#tools {
+    gap: 10px;
+}
+
+#colorPicker {
+    width: 50px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+}
+
+#brushSize {
+    max-width: 100px;
+}
+
+.btn {
+    padding: 6px 12px;
+}
+
+/* Chat and Scoreboard */
+#chatMessages {
+    background-color: #f1f3f5;
+    border-radius: 5px;
+}
+
+#chatMessages p {
+    margin: 5px 0;
+}
+
+#scoresList li {
+    margin: 5px 0;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    #drawingCanvas {
+        max-height: 40vh; /* Smaller canvas on mobile */
+    }
+
+    #chat, #scoreboard {
+        max-height: 25vh;
+        overflow-y: auto;
+    }
+
+    #tools {
+        justify-content: center;
+    }
+
+    .btn, #brushSize, #guessInput {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 576px) {
+    h1, h2, h3 {
+        font-size: 1.5rem;
+    }
+
+    .container, .container-fluid {
+        padding: 10px;
+    }
+}
