@@ -1,5 +1,6 @@
 Flask
 Flask-SocketIO
-google-generativeai
 gunicorn
+google-generative
+Werkzeug
 eventlet
