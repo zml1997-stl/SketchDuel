@@ -76,7 +76,7 @@ def create_room():
             'scores': {},
             'mode': 'timed',
             'time_left': 60,
-            'ready': {}  # Track player readiness
+            'ready': {}
         }
     }
     session['room_code'] = room_code
@@ -111,6 +111,7 @@ def on_join(data):
     room_code = data.get('room_code')
     if room_code not in game_rooms:
         logger.warning(f"Join failed: Room {room_code} not found")
+        emit('error', {'message': 'Room not found'})
         return
     
     join_room(room_code)
@@ -119,7 +120,7 @@ def on_join(data):
     
     if player_sid not in game['players']:
         game['players'].append(player_sid)
-        game['state']['ready'][player_sid] = False  # Initialize as not ready
+        game['state']['ready'][player_sid] = False
         logger.info(f"Player {player_sid} joined room {room_code}")
     
     emit('player_update', {'players': len(game['players'])}, room=room_code)
@@ -128,12 +129,15 @@ def on_join(data):
 def on_ready(data):
     room_code = data.get('room_code')
     if room_code not in game_rooms:
+        logger.warning(f"Ready failed: Room {room_code} not found")
         return
     
     game = game_rooms[room_code]
     player_sid = request.sid
     game['state']['ready'][player_sid] = True
     logger.info(f"Player {player_sid} marked ready in room {room_code}")
+    
+    emit('player_update', {'players': len(game['players']), 'ready': sum(game['state']['ready'].values())}, room=room_code)
     
     if len(game['players']) == 2 and all(game['state']['ready'].values()):
         game['state']['drawer'] = game['players'][0]
@@ -173,20 +177,21 @@ def on_disconnect():
     room_code = session.get('room_code')
     if room_code and room_code in game_rooms:
         game = game_rooms[room_code]
-        game['players'] = [p for p in game['players'] if p != request.sid]
-        game['state']['ready'].pop(request.sid, None)
+        player_sid = request.sid
+        game['players'] = [p for p in game['players'] if p != player_sid]
+        game['state']['ready'].pop(player_sid, None)
         if not game['players']:
             del game_rooms[room_code]
             logger.info(f"Room {room_code} deleted")
         else:
             emit('player_left', room=room_code)
-            logger.info(f"Player {request.sid} disconnected from {room_code}")
+            logger.info(f"Player {player_sid} disconnected from {room_code}")
 
 def switch_roles(room_code):
     game = game_rooms[room_code]
     game['state']['drawer'], game['state']['guesser'] = game['state']['guesser'], game['state']['drawer']
     game['state']['round'] += 1
-    game['state']['time_left'] = 60
+    game['state'][' instruments'] = 60
     game['state']['prompt'] = get_gemini_prompt(random.choice(PROMPT_CATEGORIES))
     emit('new_round', {
         'drawer': game['state']['drawer'],
